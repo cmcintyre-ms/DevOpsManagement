@@ -21,6 +21,7 @@ public class DevOpsSetupFct
     private readonly Uri _organizationUrl;
     private readonly string _pat;
     private readonly string _managementProjectId;
+    private readonly string _accessToken;
 
     public DevOpsSetupFct(Appsettings settings)
     {
@@ -29,6 +30,7 @@ public class DevOpsSetupFct
             _config = settings;
             _organizationName = settings.VSTSOrganization;
             _pat = settings.PAT;
+            //_accessToken = settings.AccessToken;
             _organizationUrl = new Uri($"https://dev.azure.com/{_organizationName}");
             _managementProjectId = settings.ManagementProjectId;
             Log.Information($"*** DevOpsSetupFct: Orga: {_organizationName}, Url: {_organizationUrl}, PAT (starting with {_pat.Substring(0, 4)}, Management Project Id: {_managementProjectId} ***");

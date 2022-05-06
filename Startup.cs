@@ -14,13 +14,19 @@ namespace DevOpsManagement
     using Newtonsoft.Json;
     using Newtonsoft.Json.Converters;
     using Newtonsoft.Json.Serialization;
+    using Microsoft.Identity.Client;
+    using Microsoft.Identity.Web;
     using Serilog;
     using System;
+    using Azure.Core;
 
     public class Startup : FunctionsStartup
     {
-        public override void Configure(IFunctionsHostBuilder builder)
+        public override async void Configure(IFunctionsHostBuilder builder)
         {
+            IConfidentialClientApplication app;
+            AuthenticationResult authResult = null;
+            string[] scopes = new string[] { "https://app.vssps.visualstudio.com/user_impersonation" };
             IConfigurationRoot config;
             Appsettings appSettings;
             try
@@ -41,8 +47,23 @@ namespace DevOpsManagement
                     ManagementProjectName = config["MANAGEMENT_PROJECT_NAME"],
                     ManagementProjectTeam = config["MANAGEMENT_PROJECT_TEAM_NAME"],
                     APPINSIGHTS_INSTRUMENTATIONKEY = config["APPINSIGHTS_INSTRUMENTATIONKEY"],
-                    ProcessTemplateId = config["PROCESS_TEMPLATE_ID"]
+                    ProcessTemplateId = config["PROCESS_TEMPLATE_ID"],
+
+                    //MSAL
+                    Instance = config["Instance"],
+                    Tenant = config["Tenant"],
+                    ClientId = config["ClientId"],
+                    ClientSecret = config["ClientSecret"]
                 };
+
+                app = ConfidentialClientApplicationBuilder.Create(appSettings.ClientId)
+                    .WithClientSecret(appSettings.ClientSecret)
+                    .WithAuthority(new Uri(appSettings.Authority))
+                    .Build();
+
+                authResult = await app.AcquireTokenForClient(scopes).ExecuteAsync();
+
+                appSettings.AccessToken = authResult.AccessToken;
 
                 TelemetryDebugWriter.IsTracingDisabled = true;
 
@@ -100,7 +121,7 @@ namespace DevOpsManagement
             try
             {
                 Log.Information($"*** Using these settings:\nOrganizationUrl: {appSettings.VSTSOrganizationUrl}\nManagementProject: {appSettings.ManagementProjectName}\nPAT (starting with {appSettings.PAT.Substring(0, 4)}\nTeam: {appSettings.ManagementProjectTeam}\nProcess template Id {appSettings.ProcessTemplateId} ***");
-                var managementProjectTask = Project.GetProjectAsync(appSettings.VSTSOrganizationUrl, appSettings.ManagementProjectName, appSettings.PAT);
+                var managementProjectTask = Project.GetProjectAsync(appSettings.VSTSOrganizationUrl, appSettings.ManagementProjectName, appSettings.AccessToken);
                 var managementProjectId = managementProjectTask.GetAwaiter().GetResult();
                 appSettings.ManagementProjectId = managementProjectId.RootElement.GetProperty("id").GetString();
                 Log.Information($"Management project id: {appSettings.ManagementProjectId}");
@@ -134,13 +155,13 @@ namespace DevOpsManagement
             try
             {
                 // Seed AZID
-                var azidTask = Project.GetMaxAzIdForEnvironment(appSettings.VSTSOrganization, appSettings.ManagementProjectName, appSettings.ManagementProjectTeam, appSettings.PAT);
+                var azidTask = Project.GetMaxAzIdForEnvironment(appSettings.VSTSOrganization, appSettings.ManagementProjectName, appSettings.ManagementProjectTeam, appSettings.AccessToken);
                 var azid = azidTask.GetAwaiter().GetResult();
                 Log.Information($"*** Found current AZP_ID = {azid} ***");
                 var azidinstance = Tools.AzIdCreator.Instance;
                 azidinstance.EnvironmentSeed = azid;
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 Log.Error(ex, $"*** Fatal: Cannot initialize AZID ***");
                 throw;

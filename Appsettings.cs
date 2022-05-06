@@ -1,6 +1,7 @@
 ﻿namespace DevOpsManagement
 {
     using System;
+    using System.Globalization;
 
     public class Appsettings
     {
@@ -25,6 +26,24 @@
                 return _orgaUrl;
             } 
         }
-        public string ProcessTemplateId { get; set; } 
+        public string ProcessTemplateId { get; set; }
+
+
+        /// <summary>
+        /// MSAL variables for authenication
+        /// </summary>
+        public string DevOpsUri = "https://app.vssps.visualstudio.com/";
+        public string Instance { get; set; }
+        public string Tenant { get; set; }
+        public string ClientId { get; set; }
+        public string ClientSecret { get; set; } // Hard coded for demo purposes but must be stored in Key Vault
+        public string Authority
+        {
+            get
+            {
+                return String.Format(CultureInfo.InvariantCulture, Instance, Tenant);
+            }
+        }
+        public string AccessToken { get; set; }
     }
 }
